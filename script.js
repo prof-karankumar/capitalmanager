@@ -79,7 +79,7 @@ function ensurePopup() {
       color: #f4fbff;
       text-align: center;
     ">
-      <div style="font-size: 22px; font-weight: 900; color:#00d4ff; margin-bottom: 8px;">🎉 Congratulations</div>
+      <div id="vipTitle" style="font-size: 22px; font-weight: 900; color:#00d4ff; margin-bottom: 8px;">🎉 Congratulations</div>
       <div id="vipMsg" style="font-size: 14px; font-weight: 800; line-height:1.4; margin-bottom: 14px;">Target reached</div>
       <button id="vipOkBtn" style="
         background: linear-gradient(135deg, #2f7dff, #00d4ff);
@@ -107,11 +107,15 @@ window.closeVipPopup = function closeVipPopup() {
   if (overlay) overlay.style.display = "none";
 };
 
-function showPopup(message) {
+function showPopup(title, message, color) {
   ensurePopup();
   const overlay = $("vipOverlay");
+  const vipTitle = $("vipTitle");
   const msg = $("vipMsg");
-  if (!overlay || !msg) return;
+  if (!overlay || !vipTitle || !msg) return;
+
+  vipTitle.textContent = title;
+  vipTitle.style.color = color || "#00d4ff";
   msg.textContent = message;
   overlay.style.display = "flex";
 }
@@ -124,7 +128,7 @@ function checkTargetPopup() {
 
   if (reached && !targetPopupShown) {
     targetPopupShown = true;
-    showPopup("🏆🎉Target Completed!");
+    showPopup("🏆🎉Target Completed!", " ", "#00d4ff");
   }
 
   if (!reached) targetPopupShown = false;
@@ -217,21 +221,26 @@ window.journalizeDay = function journalizeDay() {
     return;
   }
 
-  const actualPL = parseFloat(closedPLInput.value);
+  // ✅ normalize: "1,000" -> 1000, " 1 " -> 1
+  const raw = String(closedPLInput.value ?? "").replace(/,/g, "").trim();
+  const actualPL = parseFloat(raw);
+
   if (!Number.isFinite(actualPL)) {
     alert("Please enter valid profit/loss.");
     return;
   }
 
   const startingBalance = Number(liveBalance);
+
   const dailyTargetPct = readNumber("dailyTargetInput", 0);
   const dailyTargetProfit = startingBalance * (dailyTargetPct / 100);
 
   const lotUsed = $("recommendedLot") ? $("recommendedLot").innerText.trim() : "0.00 Lots";
-  const rewardRatio = getSelectedRatioValue();
 
   const endingBalance = startingBalance + actualPL;
-  const status = actualPL >= dailyTargetProfit * rewardRatio ? "GREEN" : "RED";
+
+  // ✅ Status ONLY by sign of actualPL
+  const status = actualPL >= 0 ? "GREEN" : "RED";
 
   addRowToLedger({
     dateTime: new Date().toLocaleString(),
@@ -242,6 +251,13 @@ window.journalizeDay = function journalizeDay() {
     endingBalance,
     status
   });
+
+  // popup GREEN/RED by sign
+  if (actualPL >= 0) {
+    showPopup("✅ GREEN", `Profit added: $${actualPL.toFixed(2)}`, "#2f7dff");
+  } else {
+    showPopup("❌ RED", `Loss added: $${actualPL.toFixed(2)}`, "#ff5f7a");
+  }
 
   liveBalance = endingBalance;
   closedPLInput.value = "";
@@ -310,14 +326,14 @@ function loadSavedData() {
       <td style="color:${statusTxt === "GREEN" ? "var(--neon2)" : "var(--danger)"}">${statusTxt || ""}</td>
     `;
   });
-}
+};
 
 window.openInitialBalancePrompt = function openInitialBalancePrompt() {
   const pin = prompt("Enter password to edit Initial Balance:");
   if (pin !== RESET_PIN) { alert("Wrong password."); return; }
 
   const newValue = prompt("Enter Initial Balance amount:", String(initialCapital));
-  const v = parseFloat(newValue);
+  const v = parseFloat(String(newValue ?? "").replace(/,/g, "").trim());
   if (!Number.isFinite(v) || v <= 0) { alert("Enter valid amount."); return; }
 
   initialCapital = v;
